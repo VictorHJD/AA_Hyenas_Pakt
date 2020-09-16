@@ -29,7 +29,9 @@ doTax <- TRUE
 ##These are the same steps that are followed by the DADA2 pipeline
 
 ## change according to where you downloaded
-path <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/2018_22_Hyena_1/"
+#path <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/2018_22_Hyena_1.1/" ##Pool multiamplicon
+path <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/2018_22_Hyena_2/2018_22_hyena2_run2/" ##Pool single amplicon run (18S, 16S, 28S)
+
 
 fastqFiles <- list.files(path, pattern=".fastq.gz$", full.names=TRUE) #take all fastaq files from the folder 
 fastqF <- grep("_R1_001.fastq.gz", fastqFiles, value = TRUE) #separate the forward reads
@@ -37,17 +39,18 @@ fastqR <- grep("_R2_001.fastq.gz", fastqFiles, value = TRUE) #separate the rever
 
 
 samples <- gsub("_S\\d+_L001_R1_001.fastq\\.gz", "\\1", basename(fastqF))
+samples<- gsub("-", "_", basename(samples))
 samples<- gsub("S\\d+_", "\\1", basename(samples))
 
 #Extra step in the pipeline: quality plots of the reads 
-## plotQualityProfile(fastqF[[1]]) ### Really low quality after 150bp :/ for test run data 
+## plotQualityProfile(fastqF[[1]]) ###  
 ## plotQualityProfile(fastqF[[200]])
 ## plotQualityProfile(fastqR[[1]])
 ## plotQualityProfile(fastqR[[200]])
 
 #Creation of a folder for filtrated reads 
-filt_path <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/filtered_Hyena_1"
-#filt_path <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/filtered_Hyena_2"
+#filt_path <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/filtered_Hyena_1"
+filt_path <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/filtered_Hyena_2/2018_22_hyena2_run2" ##Temporal name until confirm quality
 
 #Pipeline filtration 
 if(!file_test("-d", filt_path)) dir.create(filt_path)
@@ -61,20 +64,20 @@ names(filtRs) <- samples
 if(doFilter){
   filter.track <- lapply(seq_along(fastqF),  function (i) {
     filterAndTrim(fastqF[i], filtFs[i], fastqR[i], filtRs[i],
-                  truncLen=c(200,200), minLen=c(200,200), 
+                  truncLen=c(250,250), minLen=c(250,250), 
                   maxN=0, maxEE=2, truncQ=2, 
                   compress=TRUE, verbose=TRUE)
   })
-  saveRDS(filter.track, file="/SAN/Victors_playground/Metabarcoding/AA_Hyena/filter.Rds")
+  saveRDS(filter.track, file="/SAN/Victors_playground/Metabarcoding/AA_Hyena/filter_pool2.Rds")
 } else {
-  filter.track <- readRDS(file="/SAN/Victors_playground/Metabarcoding/AA_Hyena/filter.Rds")
+  filter.track <- readRDS(file="/SAN/Victors_playground/Metabarcoding/AA_Hyena/filter_pool2.Rds")
 }
 
 ##Check the proportion of reads that passed the filtering 
 filter <- do.call(rbind, filter.track)
 colSums(filter)[2]/colSums(filter)[1]
 
-###Uuuuu :S just 40% passed for the test run. 
+### 64% passed for the pool2 full run. 
 
 names(filtFs) <- names(filtRs) <- samples
 files <- PairedReadFileSet(filtFs, filtRs)
@@ -82,7 +85,7 @@ files <- PairedReadFileSet(filtFs, filtRs)
 #Preparation of primer file ### Here stats the Multiamplicon pipeline from Emanuel
 
 #Primers used in the arrays 
-ptable <- read.csv(file = "/SAN/Victors_playground/Metabarcoding/AA_Hyena/primer_list.csv", sep=",", header=TRUE, stringsAsFactors=FALSE)
+ptable <- read.csv(file = "/SAN/Victors_playground/Metabarcoding/AA_Hyena/primer_list_single.csv", sep=",", header=TRUE, stringsAsFactors=FALSE)
 primerF <- ptable[, "Seq_F"]
 primerR <- ptable[, "Seq_R"]
 names(primerF) <- as.character(ptable[, "Name_F"])
@@ -93,8 +96,8 @@ primer <- PrimerPairsSet(primerF, primerR)
 ##Multi amplicon pipeline
 if(doMultiAmp){
   MA <- MultiAmplicon(primer, files)
-  #filedir <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/stratified_Hyena_2"
-  filedir <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/stratified_Hyena_1"
+  filedir <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/stratified_Hyena_2_2"
+  #filedir <- "/SAN/Victors_playground/Metabarcoding/AA_Hyena/stratified_Hyena_1"
   if(dir.exists(filedir)) unlink(filedir, recursive=TRUE)
   MA <- sortAmplicons(MA, n=1e+05, filedir=filedir) ## This step sort the reads into amplicons based on the number of primer pairs
   
@@ -118,11 +121,11 @@ if(doMultiAmp){
   
   MA <- removeChimeraMulti(MA, mc.cores=12)
   
-  saveRDS(MA, "/SAN/Victors_playground/Metabarcoding/AA_Hyena/MA_1.RDS") ##Pool Hyena 1 preliminary run
-  #saveRDS(MA, "/SAN/Victors_playground/Metabarcoding/AA_Hyena/MA_2.RDS") ##Pool Hyena 2 full run (2nd batch of data)
+  #saveRDS(MA, "/SAN/Victors_playground/Metabarcoding/AA_Hyena/MA_1.RDS") ##Pool Hyena 1 preliminary run
+  saveRDS(MA, "/SAN/Victors_playground/Metabarcoding/AA_Hyena/MA_hyena2.RDS") ##Pool Hyena 2 full run (2nd batch of data)
 } else{
-  MA <- readRDS("/SAN/Victors_playground/Metabarcoding/AA_Hyena/MA_1.RDS") ###START from here now!
-  #MA <- readRDS("/SAN/Victors_playground/Metabarcoding/AA_Hyena/MA_2.RDS")
+  #MA <- readRDS("/SAN/Victors_playground/Metabarcoding/AA_Hyena/MA_1.RDS") ###START from here now!
+  MA <- readRDS("/SAN/Victors_playground/Metabarcoding/AA_Hyena/MA_hyena2.RDS")
 }
 
 trackingF <- getPipelineSummary(MA) 
